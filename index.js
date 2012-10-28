@@ -1,57 +1,37 @@
 /**
- * OAuth sessions.
+ * OAuth sessions
  *
- * @fileOverview
- * @module oauth-sessions
  * @author Matthew Caruana Galizia <m@m.cg>
+ * @copyright Copyright (c) 2012, Matthew Caruana Galizia
+ * @package oauth-sessions
  */
-
-'use strict';
-
-/*jshint node:true */
-/*global exports:true*/
 
 var
-Session = require('./lib/session');
+OAuthSessions     = require('./lib/oauthSessions'),
+SessionManager    = require('./lib/sessionManager'),
+SessionNegotiator = require('./sessionNegotiator'),
+ProviderManager   = require('./lib/providerManager');
 
-exports.authPath = '/oauth/provider';
+/*jshint node:true */
 
+exports.create = function(options) {
+	'use strict';
+	var sessionManager, sessionNegotiator, storeManager, providerManager;
 
-/**
- * Storage engine interface.
- *
- * @type Object
- */
-exports.store = require('./lib/store');
+	if (!options || !options.storeType) {
+		throw new TypeError();
+	}
 
+	if (options.providerFile) {
+		providerManager = ProviderManager.createFromFile(options.providerFile);
+	} else if (options.providers) {
+		providerManager = new ProviderManager();
+		providerManager.setAll(options.providers);
+	}
 
-/**
- * Providers list interface.
- *
- * @type string
- */
-exports.providers = require('./lib/providers');
+	storeManager      = new (require('./lib/stores/' + options.storeType))(options.storeOptions);
+	sessionManager    = new SessionManager(storeManager);
+	sessionNegotiator = new SessionNegotiator(providerManager, sessionManager, require('https'));
 
-
-/**
- * Create a new Session object.
- *
- * @param {string} provider
- * @param {number} [id]
- * @return {Session}
- */
-exports.create = function(provider, id) {
-	return new Session(provider, id);
-};
-
-
-/**
- * Automatically set up routing and handling with Express.
- *
- * @param {function} app The Express application instance
- * @param {string} [path] Base path for oauth request routing
- * @param {Object} [cookieOpts]
- */
-exports.express = function(app, cookieOpts) {
-	return require('./lib/middleware/express')(app, cookieOpts);
+	return new OAuthSessions(sessionManager, sessionNegotiator);
 };
